@@ -27,10 +27,6 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _playingVoiceUrl;
   bool _isPlaying = false;
 
-  // متغیرهای جستجو
-  String _searchQuery = '';
-  final TextEditingController _searchController = TextEditingController();
-
   @override
   void initState() {
     super.initState();
@@ -40,7 +36,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _audioPlayer.dispose();
-    _searchController.dispose();
     super.dispose();
   }
 
@@ -90,50 +85,9 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
         foregroundColor: const Color(0xFF0F172A),
       ),
-      body: Column(
-        children: [
-          // نوار جستجوی زنده در بالای لیست
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value.trim().toLowerCase();
-                });
-              },
-              decoration: InputDecoration(
-                hintText: 'جستجوی عنوان آزمون یا شغل...',
-                hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
-                prefixIcon: const Icon(Icons.search, color: Color(0xFF2563EB)),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, color: Colors.grey, size: 20),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _searchQuery = '');
-                        },
-                      )
-                    : null,
-                filled: true,
-                fillColor: const Color(0xFFF1F5F9),
-                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ),
-
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF2563EB)))
-                : _buildBodyContent(),
-          ),
-        ],
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF2563EB)))
+          : _buildBodyContent(),
     );
   }
 
@@ -158,19 +112,24 @@ class _HomeScreenState extends State<HomeScreen> {
     final past = _matchedData!.pastExams;
     final allExams = [...active, ...past];
 
-    final filteredExams = allExams.where((e) => e.examName.toLowerCase().contains(_searchQuery)).toList();
-
-    if (filteredExams.isEmpty) {
+    if (allExams.isEmpty) {
       return const Center(
-        child: Text('هیچ شغل یا آزمون متناسب با جستجوی شما یافت نشد.', style: TextStyle(color: Color(0xFF64748B))),
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Text(
+            'هیچ شغل یا آزمون متناسب با رشته شما یافت نشد.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Color(0xFF64748B), height: 1.6),
+          ),
+        ),
       );
     }
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: filteredExams.length,
+      itemCount: allExams.length,
       itemBuilder: (context, index) {
-        final examInfo = filteredExams[index];
+        final examInfo = allExams[index];
         final isActive = active.contains(examInfo);
 
         return Container(
@@ -280,19 +239,47 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ================= بخش ۲: لیست آزمون‌های فعال =================
   Widget _buildActiveExamList(List<ExamModel> exams) {
-    final filtered = exams.where((e) => e.name.toLowerCase().contains(_searchQuery)).toList();
-
-    if (filtered.isEmpty) {
-      return const Center(
-        child: Text('هیچ آزمون فعالی یافت نشد.', style: TextStyle(color: Color(0xFF64748B))),
+    if (exams.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2563EB).withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.find_in_page_rounded,
+                  size: 48,
+                  color: Color(0xFF2563EB),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'ما در حال تطبیق شرایط شما با تمامی آزمون های استخدامی هستیم ، در صورتی که آزمون فعالی برای شما منتشر شود در این بخش اطلاع رسانی میکنیم',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF334155),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  height: 1.8,
+                ),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: filtered.length,
+      itemCount: exams.length,
       itemBuilder: (context, index) {
-        final exam = filtered[index];
+        final exam = exams[index];
         final deadline = exam.regEnd ?? 'نامشخص';
 
         return Container(
@@ -339,9 +326,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ================= بخش ۳: آزمون‌های پیش‌رو (با پخش ویس) =================
   Widget _buildUpcomingExamList(List<ExamModel> exams) {
-    final filtered = exams.where((e) => e.name.toLowerCase().contains(_searchQuery)).toList();
-
-    if (filtered.isEmpty) {
+    if (exams.isEmpty) {
       return const Center(
         child: Text('هیچ آزمون پیش‌رویی یافت نشد.', style: TextStyle(color: Color(0xFF64748B))),
       );
@@ -352,9 +337,9 @@ class _HomeScreenState extends State<HomeScreen> {
       color: const Color(0xFF2563EB),
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: filtered.length,
+        itemCount: exams.length,
         itemBuilder: (context, index) {
-          final exam = filtered[index];
+          final exam = exams[index];
           final voiceUrl = exam.voiceUrl;
           final bool hasVoice = voiceUrl != null && voiceUrl.trim().isNotEmpty;
           final bool isThisPlaying = _isPlaying && _playingVoiceUrl == voiceUrl;
