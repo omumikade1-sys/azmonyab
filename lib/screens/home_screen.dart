@@ -4,12 +4,11 @@ import '../services/api_service.dart';
 import '../models/matched_job_model.dart';
 import '../models/exam_model.dart';
 
-// این Enum برای تشخیص اینکه کدام دکمه در داشبورد کلیک شده اضافه شد
 enum ExamPageType { matchedJobs, activeExams, upcomingExams }
 
 class HomeScreen extends StatefulWidget {
   final int userId;
-  final ExamPageType pageType; // دریافت نوع صفحه از داشبورد
+  final ExamPageType pageType;
 
   const HomeScreen({super.key, required this.userId, required this.pageType});
 
@@ -23,10 +22,14 @@ class _HomeScreenState extends State<HomeScreen> {
   List<ExamModel> _exams = [];
   MatchedJobsResponse? _matchedData;
 
-  // --- متغیرهای مربوط به پخش ویس ---
+  // متغیرهای پخش ویس
   final AudioPlayer _audioPlayer = AudioPlayer();
   String? _playingVoiceUrl;
   bool _isPlaying = false;
+
+  // متغیرهای جستجو
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -37,10 +40,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _audioPlayer.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
-  // لود کردن اطلاعات فقط برای همان صفحه‌ای که کلیک شده
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
 
@@ -65,25 +68,72 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // تغییر نام اپ‌بار بر اساس دکمه کلیک شده
   String get _pageTitle {
     switch (widget.pageType) {
-      case ExamPageType.matchedJobs: return 'پیشنهاد رشته من';
-      case ExamPageType.activeExams: return 'آزمون‌های فعال';
-      case ExamPageType.upcomingExams: return 'آزمون‌های پیش‌رو';
+      case ExamPageType.matchedJobs:
+        return 'پیشنهادهای متناسب با رشته من';
+      case ExamPageType.activeExams:
+        return 'آزمون‌های فعال و در حال ثبت‌نام';
+      case ExamPageType.upcomingExams:
+        return 'آزمون‌های پیش‌رو و اطلاعات';
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: Text(_pageTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(_pageTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
         centerTitle: true,
+        backgroundColor: Colors.white,
+        elevation: 0,
+        foregroundColor: const Color(0xFF0F172A),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _buildBodyContent(),
+      body: Column(
+        children: [
+          // نوار جستجوی زنده در بالای لیست
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value.trim().toLowerCase();
+                });
+              },
+              decoration: InputDecoration(
+                hintText: 'جستجوی عنوان آزمون یا شغل...',
+                hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                prefixIcon: const Icon(Icons.search, color: Color(0xFF2563EB)),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.grey, size: 20),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: const Color(0xFFF1F5F9),
+                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF2563EB)))
+                : _buildBodyContent(),
+          ),
+        ],
+      ),
     );
   }
 
@@ -92,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case ExamPageType.matchedJobs:
         return _buildMatchedJobsTab();
       case ExamPageType.activeExams:
-        return _buildActiveExamList(_exams, 'هیچ آزمون فعالی یافت نشد.');
+        return _buildActiveExamList(_exams);
       case ExamPageType.upcomingExams:
         return _buildUpcomingExamList(_exams);
     }
@@ -108,22 +158,37 @@ class _HomeScreenState extends State<HomeScreen> {
     final past = _matchedData!.pastExams;
     final allExams = [...active, ...past];
 
-    if (allExams.isEmpty) {
-      return const Center(child: Text('هیچ شغل یا آزمون متناسب با رشته شما یافت نشد.'));
+    final filteredExams = allExams.where((e) => e.examName.toLowerCase().contains(_searchQuery)).toList();
+
+    if (filteredExams.isEmpty) {
+      return const Center(
+        child: Text('هیچ شغل یا آزمون متناسب با جستجوی شما یافت نشد.', style: TextStyle(color: Color(0xFF64748B))),
+      );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: allExams.length,
+      padding: const EdgeInsets.all(16),
+      itemCount: filteredExams.length,
       itemBuilder: (context, index) {
-        final examInfo = allExams[index];
+        final examInfo = filteredExams[index];
         final isActive = active.contains(examInfo);
 
-        return Card(
-          elevation: 3,
-          margin: const EdgeInsets.symmetric(vertical: 8),
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
           child: Padding(
-            padding: const EdgeInsets.all(12.0),
+            padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -134,44 +199,74 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Text(
                         examInfo.examName,
                         style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold,
-                          color: isActive ? Colors.blue : Colors.grey.shade700,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: isActive ? const Color(0xFF0F172A) : const Color(0xFF64748B),
                         ),
                       ),
                     ),
-                    if (!isActive)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(4)),
-                        child: const Text('منقضی شده', style: TextStyle(color: Colors.red, fontSize: 12)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isActive ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                        borderRadius: BorderRadius.circular(20),
                       ),
+                      child: Text(
+                        isActive ? 'فعال' : 'منقضی شده',
+                        style: TextStyle(
+                          color: isActive ? const Color(0xFF166534) : const Color(0xFF991B1B),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                Text('تاریخ برگزاری: ${examInfo.examDate}'),
-                const Divider(),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_month_outlined, size: 16, color: Color(0xFF64748B)),
+                    const SizedBox(width: 6),
+                    Text(
+                      'تاریخ برگزاری: ${examInfo.examDate}',
+                      style: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                    ),
+                  ],
+                ),
+                const Divider(height: 24, color: Color(0xFFF1F5F9)),
                 ...examInfo.matchedDegrees.map((deg) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
-                        child: Text('تطبیق با: ${deg.degree} ${deg.major}', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2563EB).withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'تطبیق با: ${deg.degree} ${deg.major}',
+                          style: const TextStyle(color: Color(0xFF2563EB), fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       ...deg.jobs.map((job) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4.0, right: 8.0),
+                        padding: const EdgeInsets.only(bottom: 6.0, right: 8.0),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.check_circle, size: 16, color: isActive ? Colors.green : Colors.grey),
+                            Icon(Icons.check_circle_rounded, size: 18, color: isActive ? const Color(0xFF10B981) : Colors.grey),
                             const SizedBox(width: 8),
-                            Expanded(child: Text(job.toString())),
+                            Expanded(
+                              child: Text(
+                                job.toString(),
+                                style: const TextStyle(fontSize: 13, color: Color(0xFF334155), height: 1.4),
+                              ),
+                            ),
                           ],
                         ),
                       )).toList(),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                     ],
                   );
                 }).toList(),
@@ -184,50 +279,102 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ================= بخش ۲: لیست آزمون‌های فعال =================
-  Widget _buildActiveExamList(List<ExamModel> exams, String emptyMessage) {
-    if (exams.isEmpty) return Center(child: Text(emptyMessage));
+  Widget _buildActiveExamList(List<ExamModel> exams) {
+    final filtered = exams.where((e) => e.name.toLowerCase().contains(_searchQuery)).toList();
+
+    if (filtered.isEmpty) {
+      return const Center(
+        child: Text('هیچ آزمون فعالی یافت نشد.', style: TextStyle(color: Color(0xFF64748B))),
+      );
+    }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: exams.length,
+      padding: const EdgeInsets.all(16),
+      itemCount: filtered.length,
       itemBuilder: (context, index) {
-        final exam = exams[index];
+        final exam = filtered[index];
         final deadline = exam.regEnd ?? 'نامشخص';
 
-        return Card(
-          elevation: 2,
-          margin: const EdgeInsets.symmetric(vertical: 6),
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
           child: ListTile(
-            title: Text(exam.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text('مهلت ثبت‌نام: $deadline'),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            leading: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2563EB).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.assignment_turned_in_rounded, color: Color(0xFF2563EB)),
+            ),
+            title: Text(
+              exam.name,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A)),
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 4.0),
+              child: Text(
+                'مهلت ثبت‌نام: $deadline',
+                style: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+              ),
+            ),
+            trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Color(0xFF94A3B8)),
           ),
         );
       },
     );
   }
 
-  // ================= بخش ۳: آزمون‌های پیش‌رو (همراه با پخش ویس) =================
+  // ================= بخش ۳: آزمون‌های پیش‌رو (با پخش ویس) =================
   Widget _buildUpcomingExamList(List<ExamModel> exams) {
-    if (exams.isEmpty) return const Center(child: Text('هیچ آزمون پیش‌رویی یافت نشد.'));
+    final filtered = exams.where((e) => e.name.toLowerCase().contains(_searchQuery)).toList();
+
+    if (filtered.isEmpty) {
+      return const Center(
+        child: Text('هیچ آزمون پیش‌رویی یافت نشد.', style: TextStyle(color: Color(0xFF64748B))),
+      );
+    }
 
     return RefreshIndicator(
       onRefresh: _loadData,
+      color: const Color(0xFF2563EB),
       child: ListView.builder(
-        padding: const EdgeInsets.all(12),
-        itemCount: exams.length,
+        padding: const EdgeInsets.all(16),
+        itemCount: filtered.length,
         itemBuilder: (context, index) {
-          final exam = exams[index];
+          final exam = filtered[index];
           final voiceUrl = exam.voiceUrl;
           final bool hasVoice = voiceUrl != null && voiceUrl.trim().isNotEmpty;
           final bool isThisPlaying = _isPlaying && _playingVoiceUrl == voiceUrl;
 
-          return Card(
-            elevation: 3,
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          return Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
             child: Padding(
-              padding: const EdgeInsets.all(12.0),
+              padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -235,42 +382,49 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
-                        child: Text(exam.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue)),
+                        child: Text(
+                          exam.name,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2563EB),
+                          ),
+                        ),
                       ),
                       IconButton(
                         icon: Icon(
-                          isThisPlaying ? Icons.pause_circle_filled : (hasVoice ? Icons.play_circle_fill : Icons.volume_off),
-                          color: hasVoice ? Colors.purple : Colors.grey,
-                          size: 40,
+                          isThisPlaying ? Icons.pause_circle_filled : (hasVoice ? Icons.play_circle_fill : Icons.volume_off_rounded),
+                          color: hasVoice ? const Color(0xFF8B5CF6) : const Color(0xFFCBD5E1),
+                          size: 42,
                         ),
                         onPressed: () async {
-                         if (!hasVoice) {
-                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ویسی برای این آزمون ثبت نشده است.')));
-                           return;
-                         }
-                         try {
-                          if (isThisPlaying) {
-                            await _audioPlayer.pause();
-                            if (mounted) setState(() => _isPlaying = false);
-                          } else {
-      // تغییر مهم: اول وضعیت دکمه را تغییر می‌دهیم تا کاربر بلافاصله متوجه شود
-                            if (mounted) {
-                              setState(() {
-                                _playingVoiceUrl = voiceUrl;
-                                _isPlaying = true;
-                              });
-                            }
-      
-      // سپس در پس‌زمینه ویس را لود و پخش می‌کنیم
-                            await _audioPlayer.stop();
-                            await _audioPlayer.play(UrlSource(voiceUrl!));
+                          if (!hasVoice) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('ویسی برای این آزمون ثبت نشده است.')),
+                            );
+                            return;
                           }
+                          try {
+                            if (isThisPlaying) {
+                              await _audioPlayer.pause();
+                              if (mounted) setState(() => _isPlaying = false);
+                            } else {
+                              if (mounted) {
+                                setState(() {
+                                  _playingVoiceUrl = voiceUrl;
+                                  _isPlaying = true;
+                                });
+                              }
+                              await _audioPlayer.stop();
+                              await _audioPlayer.play(UrlSource(voiceUrl!));
+                            }
                           } catch (e) {
                             debugPrint("Error playing audio: $e");
                             if (mounted) {
-      // اگر خطایی رخ داد، دکمه را به حالت اول برمی‌گردانیم
                               setState(() => _isPlaying = false);
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطا در پخش ویس: $e')));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('خطا در پخش ویس: $e')),
+                              );
                             }
                           }
                         },
@@ -279,7 +433,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   if (exam.description != null && exam.description!.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    Text(exam.description!, style: TextStyle(color: Colors.grey.shade800, height: 1.4)),
+                    Text(
+                      exam.description!,
+                      style: const TextStyle(color: Color(0xFF475569), height: 1.5, fontSize: 13),
+                    ),
                   ],
                 ],
               ),
