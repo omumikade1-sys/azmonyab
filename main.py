@@ -2,6 +2,8 @@ from fastapi import FastAPI, Query, HTTPException, Body
 from pydantic import BaseModel
 from typing import List, Optional
 import sqlite3
+import pandas as pd
+from flask import Flask, request, jsonify
 import aiosqlite
 import json
 import re
@@ -13,6 +15,24 @@ app = FastAPI(
     description="API اختصاصی برای ارتباط اپلیکیشن فلاتر با دیتابیس و منطق هوشمند آزمون‌ها",
     version="2.0.0"
 )
+
+
+@app.on_event("startup")
+async def startup_db():
+    async with aiosqlite.connect(APP_DB) as conn:
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS questions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                question_text TEXT NOT NULL,
+                option_a TEXT NOT NULL,
+                option_b TEXT NOT NULL,
+                option_c TEXT NOT NULL,
+                option_d TEXT NOT NULL,
+                correct_option TEXT NOT NULL,
+                day_number INTEGER DEFAULT 1
+            )
+        ''')
+        await conn.commit()
 
 APP_DB = 'recruitment.db' # استفاده از همان دیتابیس مشترک ربات
 
@@ -347,3 +367,63 @@ async def get_user_matched_jobs(user_id: int):
         "active_exams": active_results,
         "past_exams": past_results
     }
+
+# ================= اندپوینت‌های نمونه سوالات استخدامی =================
+
+from fastapi import UploadFile, File
+
+@app.post("/questions/upload-excel", summary="آپلود فایل اکسل سوالات", tags=["نمونه سوالات"])
+async def upload_questions_excel(file: UploadFile = File(...)):
+    try:
+        df = pd.read_excel(file.file)
+        async with aiosqlite.connect(APP_DB, timeout=30) as conn:
+            for index, row in df.iterrows():
+                # اختصاص ۵ سوال برای هر روز به صورت خودکار
+                day_num = (index // 5) + 1
+                await conn.execute('''
+                    INSERT INTO questions (question_text, option_a, option_b, option_c, option_d, correct_option, day_number)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    str(row['question']),
+                    str(row['option_a']),
+                    str(row['option_b']),
+                    str(row['option_c']),
+                    str(row['option_d']),
+                    str(row['correct_option']).strip(),
+                    day_num
+                ))
+            await conn.commit()
+        return {"status": "success", "message": "سوالات اکسل با موفقیت ثبت شدند."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"خطا در پردازش فایل اکسل: {str(e)}")
+
+
+@app.get("/questions/daily", summary="دریافت ۵ سوال روزانه استخدامی", tags=["نمونه سوالات"])
+async def get_daily_questions(day: int = Query(default=1, description="شماره روز")):
+    async with aiosqlite.connect(APP_DB, timeout=30) as conn:
+        async with conn.execute('''
+            SELECT id, question_text, option_a, option_b, option_c, option_d, correct_option 
+            FROM questions 
+            WHERE day_number = ? 
+            LIMIT 5
+        ''', (day,)) as c:
+            rows = await c.fetchall()
+
+    if not rows:
+        return {"status": "empty", "questions": []}
+
+    questions = []
+    for row in rows:
+        questions.append({
+            "id": row[0],
+            "question": row[1],
+            "options": {
+                "a": row[2],
+                "b": row[3],
+                "c": row[4],
+                "d": row[5]
+            },
+            "correct_option": row[6]
+        })
+
+    return {"status": "success", "questions": questions}

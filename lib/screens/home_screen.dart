@@ -103,6 +103,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ================= بخش ۱: پیشنهاد رشته من =================
+  // ================= بخش ۱: پیشنهاد رشته من =================
   Widget _buildMatchedJobsTab() {
     if (_matchedData == null) {
       return const Center(child: Text('درحال بارگذاری اطلاعات...'));
@@ -127,10 +128,52 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: allExams.length,
+      itemCount: allExams.length + 1, // +1 برای اضافه کردن کارت راهنمای بالای صفحه
       itemBuilder: (context, index) {
-        final examInfo = allExams[index];
-        final isActive = active.contains(examInfo);
+        // ردیف اول: بنر راهنما و انگیزه بخش
+        if (index == 0) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 20),
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2563EB).withOpacity(0.08),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFF2563EB).withOpacity(0.2)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2563EB).withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.info_outline_rounded,
+                    color: Color(0xFF2563EB),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Text(
+                    'آزمون‌های این بخش بر اساس مقطع، رشته تحصیلی و شرایط سنی شما تطبیق داده شده‌اند. اگرچه مهلت ثبت‌نام این موارد به پایان رسیده، اما بررسی آن‌ها به شما کمک می‌کند تا با ارگان‌ها، سازمان‌ها و فرصت‌های شغلی مرتبط با رشته خود آشنا شده و برای آزمون‌های بعدی آماده‌تر شوید.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.8,
+                      color: Color(0xFF1E293B),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // کارت‌های آزمون (ایندکس - ۱ به خاطر کارت راهنما)
+        final examInfo = allExams[index - 1];
 
         return Container(
           margin: const EdgeInsets.only(bottom: 16),
@@ -151,35 +194,13 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        examInfo.examName,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: isActive ? const Color(0xFF0F172A) : const Color(0xFF64748B),
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isActive ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        isActive ? 'فعال' : 'منقضی شده',
-                        style: TextStyle(
-                          color: isActive ? const Color(0xFF166534) : const Color(0xFF991B1B),
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
+                Text(
+                  examInfo.examName,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -214,7 +235,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.check_circle_rounded, size: 18, color: isActive ? const Color(0xFF10B981) : Colors.grey),
+                            const Icon(Icons.check_circle_rounded, size: 18, color: Color(0xFF2563EB)),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
