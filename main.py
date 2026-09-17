@@ -376,20 +376,27 @@ from fastapi import UploadFile, File
 async def upload_questions_excel(file: UploadFile = File(...)):
     try:
         df = pd.read_excel(file.file)
+        correct_map = {'1': 'a', '2': 'b', '3': 'c', '4': 'd', 'a': 'a', 'b': 'b', 'c': 'c', 'd': 'd'}
+        
         async with aiosqlite.connect(APP_DB, timeout=30) as conn:
             for index, row in df.iterrows():
-                # اختصاص ۵ سوال برای هر روز به صورت خودکار
+                # دسته بندی ۵ سوالی برای هر روز
                 day_num = (index // 5) + 1
+                
+                # تبدیل عدد گزینه صحیح (1, 2, 3, 4) به شناسه گزینه (a, b, c, d)
+                raw_correct = str(row['پاسخ صحیح']).split('.')[0].strip().lower()
+                correct_opt = correct_map.get(raw_correct, raw_correct)
+                
                 await conn.execute('''
                     INSERT INTO questions (question_text, option_a, option_b, option_c, option_d, correct_option, day_number)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 ''', (
-                    str(row['question']),
-                    str(row['option_a']),
-                    str(row['option_b']),
-                    str(row['option_c']),
-                    str(row['option_d']),
-                    str(row['correct_option']).strip(),
+                    str(row['متن سوال']),
+                    str(row['گزینه 1']),
+                    str(row['گزینه 2']),
+                    str(row['گزینه 3']),
+                    str(row['گزینه 4']),
+                    correct_opt,
                     day_num
                 ))
             await conn.commit()
